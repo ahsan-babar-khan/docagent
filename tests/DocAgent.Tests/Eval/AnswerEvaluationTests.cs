@@ -59,7 +59,10 @@ public class AnswerEvaluationTests(ITestOutputHelper output)
             .AppendLine("| MinScore | Citation accuracy | Refusal accuracy | False refusals | Avg latency (ms) |")
             .AppendLine("|---:|---:|---:|---:|---:|");
 
-        foreach (var minScore in new[] { 0.20, 0.30, 0.40 })
+        // Each embedding model has its own similarity scale, so sweep a wide range. Override with EVAL_MIN_SCORES=0.45,0.5
+        var sweep = (Environment.GetEnvironmentVariable("EVAL_MIN_SCORES") ?? "0.30,0.40,0.50,0.60")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => double.Parse(s, System.Globalization.CultureInfo.InvariantCulture));
+        foreach (var minScore in sweep)
         {
             int citedRight = 0, refusedRight = 0, falseRefusals = 0;
             var latencies = new List<long>();

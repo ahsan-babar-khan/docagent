@@ -91,6 +91,8 @@ public class OpenAiProviderTests : IAsyncLifetime
         path.Should().Be("/v1/chat/completions");
         body.GetProperty("model").GetString().Should().Be("qwen2.5:7b");
         body.GetProperty("response_format").GetProperty("type").GetString().Should().Be("json_object");
+        body.TryGetProperty("max_completion_tokens", out var max).Should().BeTrue("output must be capped");
+        max.GetInt32().Should().Be(OpenAiChatService.MaxOutputTokens);
     }
 
     [Fact]

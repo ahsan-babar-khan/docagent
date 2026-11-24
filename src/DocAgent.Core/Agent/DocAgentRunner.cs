@@ -21,7 +21,7 @@ public class DocAgentRunner(ChatClient chat, DocAgentTools tools)
     {
         var trace = new List<string>();
         List<ChatMessage> messages = [new SystemChatMessage(System), new UserChatMessage(question)];
-        var options = new ChatCompletionOptions { Temperature = 0.1f };
+        var options = new ChatCompletionOptions { Temperature = 0.1f, MaxOutputTokenCount = 1000 }; // cap runaway output and cost per step
         foreach (var tool in DocAgentTools.All) options.Tools.Add(tool);
 
         for (int step = 0; step < MaxSteps; step++)

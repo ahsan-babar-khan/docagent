@@ -6,6 +6,8 @@ namespace DocAgent.Core.Ai;
 
 public class OpenAiChatService(ChatClient chat, string deployment, ILogger<OpenAiChatService> logger) : IChatService
 {
+    public const int MaxOutputTokens = 500;
+
     public ChatClient Client => chat; // reused by the agent
 
     public async Task<string> CompleteJsonAsync(string system, string user, CancellationToken ct = default)
@@ -13,7 +15,10 @@ public class OpenAiChatService(ChatClient chat, string deployment, ILogger<OpenA
         var options = new ChatCompletionOptions
         {
             ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat(), // structured response
-            Temperature = 0.1f                                            // low = more consistent
+            Temperature = 0.1f,                                           // low = more consistent
+            // Hard cap: small models in JSON mode can keep emitting whitespace after the closing brace
+            // (seen with qwen2.5:3b: 2,300+ tokens for a one-line answer). Also bounds cost per call.
+            MaxOutputTokenCount = MaxOutputTokens
         };
         var sw = Stopwatch.StartNew();
         ChatCompletion result = (await chat.CompleteChatAsync(

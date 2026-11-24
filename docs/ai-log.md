@@ -51,3 +51,19 @@ The LSH index now takes its vector size from the first vector, so switching mode
 
 **Not verified:** no real Ollama or OpenAI run yet (neither was available on this machine). The fake-server tests cover
 request shape and parsing, not model quality. Run the evaluation against Ollama to get real numbers.
+
+## 2026-11-24 — First run against real local models (Ollama, qwen2.5:3b + nomic-embed-text)
+
+**Asked:** install Ollama and run DocAgent for real.
+
+**Problems caught and how:**
+
+| # | What went wrong | How it was caught | Fix |
+|---|---|---|---|
+| 9 | Answers took minutes and came back as **garbage** (random multilingual tokens). Ollama ran the model on this laptop's old AMD R7 M370 GPU through Vulkan, which produced corrupted output. | Calling the model directly; the Ollama server log showed `library=Vulkan`, 13/13 layers offloaded | Hid the GPU from Ollama (`GGML_VK_VISIBLE_DEVICES=-1`, user env var) → 100% CPU, clean output, ~5 s per answer. Re-embedded every document, since the old vectors also came from the broken GPU |
+| 10 | The model **kept generating**: 2,300+ tokens of whitespace after the JSON. Nothing capped output length, which with a paid API would also be a cost risk. | Ollama log `n_gen = 2320` for a one-line answer | `MaxOutputTokenCount` = 500 for answers, 1,000 per agent step. A test checks that the request carries the cap |
+| 11 | **Correct answers were returned as "I could not find this".** qwen2.5:3b cites source *numbers* (`"citations": [1]`), not file names. The strict parser threw on an integer, and the fail-closed path turned a right answer into a refusal. | Comparing the raw model reply with the API response | Citations are matched to the sources actually sent, as a file name, a number or `"[n]"`. Anything else is still dropped. The prompt now shows an example. 10 new unit tests |
+| 12 | An off-topic question ("capital of Australia?") was **answered** ("Canberra"). `MinScore = 0.30` was tuned for OpenAI embeddings. With nomic-embed-text, unrelated text scores 0.39–0.42 while real matches score 0.65–0.79. | Printing the similarity of each question to each document | The threshold is per model: `Rag:MinScore` is set to fit the eval results, the eval sweeps a wider range, and only sources above the threshold are sent to the model |
+
+**Lesson:** the deterministic tests all passed before this run. None of these four problems can show up with fakes.
+They are exactly why the guide keeps a separate evaluation against the real model.

@@ -88,5 +88,37 @@ public class AnswerServiceTests : IDisposable
         chunk.Embedding.Should().Equal(await _embeddings.EmbedAsync(chunk.Text));
     }
 
+    private static readonly string[] Sent = ["Contract_Acme.txt", "Apollo_Plan.txt"];
+
+    [Theory]
+    [InlineData("""{"answer":"x","citations":[1]}""", "Contract_Acme.txt")]                       // number (qwen2.5:3b does this)
+    [InlineData("""{"answer":"x","citations":["[2]"]}""", "Apollo_Plan.txt")]                     // "[n]"
+    [InlineData("""{"answer":"x","citations":["contract_acme.txt"]}""", "Contract_Acme.txt")]     // case
+    [InlineData("""{"answer":"x","citations":["[1] File: Contract_Acme.txt"]}""", "Contract_Acme.txt")] // extra text
+    [InlineData("""{"Answer":"x","Citations":"Apollo_Plan.txt"}""", "Apollo_Plan.txt")]           // single value, other casing
+    public void Citations_are_mapped_to_the_sources_that_were_sent(string reply, string expected) =>
+        AnswerService.Parse(reply, Sent).Citations.Should().Equal(expected);
+
+    [Theory]
+    [InlineData("""{"answer":"x","citations":[3]}""")]               // index out of range
+    [InlineData("""{"answer":"x","citations":[0, -1]}""")]
+    [InlineData("""{"answer":"x","citations":["Invented.txt"]}""")]  // never shown
+    [InlineData("""{"answer":"x","citations":[""]}""")]
+    [InlineData("""{"answer":"x","citations":[{"file":"Contract_Acme.txt"}]}""")]
+    public void Citations_that_do_not_match_a_sent_source_are_dropped(string reply) =>
+        AnswerService.Parse(reply, Sent).Citations.Should().BeEmpty();
+
+    [Fact]
+    public async Task Only_sources_above_the_threshold_are_shown_to_the_model()
+    {
+        await AddAsync("Contract_Acme.txt", "Apollo", "The Acme contract renews on 1 March 2027.");
+        await AddAsync("Menu.txt", "Canteen", "Monday soup, Tuesday fish, Wednesday pasta.");
+        using var db = _testDb.Create();
+
+        await Service(db).AskAsync("When does the Acme contract renew?");
+
+        _chat.LastUserPrompt.Should().Contain("Contract_Acme.txt").And.NotContain("Menu.txt");
+    }
+
     public void Dispose() => _testDb.Dispose();
 }
