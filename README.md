@@ -54,18 +54,34 @@ At real scale I would use a managed vector store such as Azure AI Search. Writin
 ### Answer quality (AI evaluation)
 
 19 questions over 5 sample documents ([tests/DocAgent.Tests/Eval](tests/DocAgent.Tests/Eval)): 16 answerable and 3 that must be refused.
-Run it free against local Ollama models (or any provider, using the same `AI_*` variables):
+Measured on a laptop CPU with free local models (Ollama: `qwen2.5:3b` for chat, `nomic-embed-text` for embeddings):
+
+| MinScore | Citation accuracy | Refusal accuracy | False refusals | Avg latency |
+|---:|---:|---:|---:|---:|
+| 0.30 | 16/16 (100%) | 2/3 (67%) | 0 | 13.4 s* |
+| 0.40 | 16/16 (100%) | 3/3 (100%) | 0 | 5.0 s |
+| **0.50** | **16/16 (100%)** | **3/3 (100%)** | **0** | **4.4 s** |
+| 0.60 | 16/16 (100%) | 3/3 (100%) | 0 | 3.5 s |
+
+\* includes loading the model into memory on the first question.
+
+**What the numbers say:**
+- **The threshold is the hallucination guard.** At 0.30 the off-topic question "What is the capital of Australia?" got
+  past the threshold, and the model answered "Canberra" from its own knowledge despite the "only from sources" instruction.
+  The citation guardrail left it uncited, but it was still an answer that did not come from the documents. From 0.50 up, all three off-topic questions are refused
+  **before the LLM is called**, which is also why latency drops.
+- **The threshold depends on the embedding model.** With `nomic-embed-text`, real matches scored 0.65–0.79 and off-topic
+  questions 0.39–0.42. I use **0.50**, in the middle of that gap. 0.60 also scores 100% but sits close to the weakest real
+  match (0.65), so it would start refusing real questions first. OpenAI embeddings use a different scale, so re-run the sweep after switching models.
+- Small set (19 questions), one run, one model. It is a regression check, not a benchmark: change the prompt or the
+  model, rerun, compare.
+
+Run it yourself (free, local), or against any provider with the same `AI_*` variables:
 
 ```bash
-AI_ENDPOINT=http://localhost:11434/v1 AI_CHAT_MODEL=qwen2.5:7b AI_EMBEDDING_MODEL=nomic-embed-text \
-  dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
+AI_ENDPOINT=http://localhost:11434/v1 AI_CHAT_MODEL=qwen2.5:3b AI_EMBEDDING_MODEL=nomic-embed-text   dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
+# choose thresholds with EVAL_MIN_SCORES=0.45,0.5,0.55
 ```
-
-| MinScore | Citation accuracy | Refusal accuracy | False refusals | Avg latency (ms) |
-|---:|---:|---:|---:|---:|
-| 0.20 | _not run yet_ | | | |
-| 0.30 | | | | |
-| 0.40 | | | | |
 
 ## How it is tested
 
@@ -100,7 +116,7 @@ cited file names (structured data), refusal detected *before* the LLM call, and 
 In CI the AI services are replaced by deterministic fakes, so tests are fast, free and repeatable.
 
 ```bash
-dotnet test --filter "Category!=Eval&Category!=Benchmark"   # what CI runs (52 tests)
+dotnet test --filter "Category!=Eval&Category!=Benchmark"   # what CI runs (63 tests)
 dotnet test -c Release --filter Category=Benchmark --logger "console;verbosity=detailed"
 dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
 ```
@@ -135,13 +151,14 @@ The free option needs no key: [Ollama](https://ollama.com) runs the models on yo
 
 ```bash
 # 1. Free, local models (one-time download, a few GB)
-ollama pull qwen2.5:7b          # chat model with tool calling + JSON mode (use qwen2.5:3b on a slow laptop)
+ollama pull qwen2.5:3b          # chat model with tool calling + JSON mode (qwen2.5:7b is better if you have a GPU)
 ollama pull nomic-embed-text    # embedding model (768 dimensions)
 
 # 2. Point DocAgent at it
 cd src/DocAgent.Api
 dotnet user-secrets set "AI:Endpoint" "http://localhost:11434/v1"
-dotnet user-secrets set "AI:ChatModel" "qwen2.5:7b"
+dotnet user-secrets set "AI:ChatModel" "qwen2.5:3b"
+dotnet user-secrets set "Rag:MinScore" "0.5"          # tuned for nomic-embed-text, see Results
 dotnet user-secrets set "AI:EmbeddingModel" "nomic-embed-text"
 
 # 3. Run
@@ -152,7 +169,7 @@ Other providers only change the settings:
 
 | Provider | `AI:Endpoint` | `AI:Key` | Models |
 |---|---|---|---|
-| Ollama (free, local) | `http://localhost:11434/v1` | — | e.g. `qwen2.5:7b`, `nomic-embed-text` |
+| Ollama (free, local) | `http://localhost:11434/v1` | — | e.g. `qwen2.5:3b`, `nomic-embed-text` |
 | OpenAI | _(empty)_ | `sk-...` | `gpt-4o-mini`, `text-embedding-3-small` (defaults) |
 | Azure OpenAI | `https://<res>.openai.azure.com/` (detected automatically) | key | your deployment names |
 

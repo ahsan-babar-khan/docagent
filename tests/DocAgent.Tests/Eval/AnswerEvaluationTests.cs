@@ -74,9 +74,11 @@ public class AnswerEvaluationTests(ITestOutputHelper output)
                 var answer = await rag.AskAsync(c.Question);
                 latencies.Add(sw.ElapsedMilliseconds);
 
-                if (c.ExpectFile is null) { if (answer.Citations.Count == 0) refusedRight++; }
+                // A refusal must say so: an uncited answer ("The capital is Canberra") is NOT a refusal.
+                var refused = answer.Citations.Count == 0 && IsRefusal(answer.Text);
+                if (c.ExpectFile is null) { if (refused) refusedRight++; }
                 else if (answer.Citations.Contains(c.ExpectFile)) citedRight++;
-                else if (answer.Citations.Count == 0) falseRefusals++;
+                else if (refused) falseRefusals++;
 
                 output.WriteLine($"[{minScore:F2}] {c.Question} -> [{string.Join(", ", answer.Citations)}] {answer.Text}");
             }
@@ -99,6 +101,12 @@ public class AnswerEvaluationTests(ITestOutputHelper output)
         if (endpoint is null && key is null) return null;
         return new OpenAiClientFactory(endpoint, key, Env("AI_CHAT_MODEL") ?? "gpt-4o-mini", Env("AI_EMBEDDING_MODEL") ?? "text-embedding-3-small");
     }
+
+    private static bool IsRefusal(string text) =>
+        text == AnswerService.NotFound
+        || text.Contains("could not find", StringComparison.OrdinalIgnoreCase)
+        || text.Contains("couldn't find", StringComparison.OrdinalIgnoreCase)
+        || text.Contains("not found", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Each question is embedded once, not once per MinScore setting.</summary>
     private sealed class CachingEmbeddingService(IEmbeddingService inner) : IEmbeddingService
