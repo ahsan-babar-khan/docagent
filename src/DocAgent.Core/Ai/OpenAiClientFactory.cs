@@ -22,7 +22,7 @@ public class OpenAiClientFactory
     {
         (_chatModel, _embeddingModel) = (chatModel, embeddingModel);
         if (string.IsNullOrWhiteSpace(key))
-            throw new InvalidOperationException(
+            throw new AiNotConfiguredException(
                 "No AI key configured. Set AzureOpenAI:Key (and AzureOpenAI:Endpoint) with dotnet user-secrets, or OpenAI:Key for the OpenAI fallback.");
 
         if (!string.IsNullOrWhiteSpace(endpoint))

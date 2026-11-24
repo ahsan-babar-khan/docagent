@@ -1,5 +1,6 @@
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Data.Sqlite;
 using DocAgent.Core.Agent;
 using DocAgent.Core.Ai;
 using DocAgent.Core.Documents;
@@ -16,7 +17,13 @@ if (!string.IsNullOrEmpty(config["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
 
 // ---- Storage
 builder.Services.AddDbContext<DocAgentDb>(o =>
-    o.UseSqlite(config.GetConnectionString("Db") ?? "Data Source=docagent.db"));
+{
+    var cs = config.GetConnectionString("Db") ?? "Data Source=docagent.db";
+    // SQLite creates the file but not its folder (e.g. /home/data on App Service), so make sure it exists.
+    var dir = Path.GetDirectoryName(new SqliteConnectionStringBuilder(cs).DataSource);
+    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+    o.UseSqlite(cs);
+});
 
 // ---- AI clients (Step 4 + 6). Resolved lazily, so the app starts without keys; only AI calls need them.
 builder.Services.AddSingleton(_ =>
@@ -69,6 +76,17 @@ builder.Services.AddRateLimiter(o =>
 });
 
 var app = builder.Build();
+
+// A missing AI key is a configuration problem, not a crash: answer 503 with a clear message.
+app.Use(async (ctx, next) =>
+{
+    try { await next(ctx); }
+    catch (AiNotConfiguredException e) when (!ctx.Response.HasStarted)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await ctx.Response.WriteAsJsonAsync(new { error = e.Message });
+    }
+});
 app.UseRateLimiter();
 
 // Create the database and reload every stored vector into the in-memory index
@@ -82,12 +100,14 @@ using (var scope = app.Services.CreateScope())
 
 app.MapGet("/", () => Results.Ok(new { name = "DocAgent", endpoints = new[] { "POST /documents", "GET /documents", "POST /ask", "POST /agent" } }));
 
-app.MapPost("/documents", async (UploadRequest req, DocumentService docs, CancellationToken ct) =>
+// AI-backed services are resolved inside the handlers, after validation,
+// so a bad request gets its 400 even when the AI is unavailable.
+app.MapPost("/documents", async (UploadRequest req, HttpContext http, CancellationToken ct) =>
 {
     var errors = Limits.ValidateUpload(req);
     if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-    var doc = await docs.AddAsync(req, ct);
+    var doc = await http.RequestServices.GetRequiredService<DocumentService>().AddAsync(req, ct);
     return Results.Created($"/documents/{doc.Id}",
         new { doc.Id, doc.FileName, doc.Project, doc.Customer, doc.Type, Chunks = doc.Chunks.Count });
 });
@@ -105,21 +125,24 @@ app.MapGet("/documents/{id:int}", async (int id, DocAgentDb db) =>
         .Select(d => new { d.Id, d.FileName, d.Project, d.Customer, d.Type, d.UploadedAt, d.Content })
         .FirstOrDefaultAsync() is { } doc ? Results.Ok(doc) : Results.NotFound());
 
-app.MapPost("/ask", async (AskRequest req, AnswerService rag, CancellationToken ct) =>
+app.MapPost("/ask", async (AskRequest req, HttpContext http, CancellationToken ct) =>
 {
     var error = Limits.ValidateQuestion(req.Question);
     if (error is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["question"] = [error] });
+
+    var rag = http.RequestServices.GetRequiredService<AnswerService>();
     return Results.Ok(await rag.AskAsync(req.Question, req.Project, ct));
 }).RequireRateLimiting("ai");
 
-app.MapPost("/agent", async (AskRequest req, HttpRequest http, DocAgentRunner agent, CancellationToken ct) =>
+app.MapPost("/agent", async (AskRequest req, HttpContext http, CancellationToken ct) =>
 {
     var error = Limits.ValidateQuestion(req.Question);
     if (error is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["question"] = [error] });
 
     // Demo shortcut: allowed projects come from a header. In a real system they come from the user's token (Entra ID groups).
-    var allowed = http.Headers["X-Allowed-Projects"].ToString()
+    var allowed = http.Request.Headers["X-Allowed-Projects"].ToString()
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
+    var agent = http.RequestServices.GetRequiredService<DocAgentRunner>();
     return Results.Ok(await agent.RunAsync(req.Question, allowed, ct));
 }).RequireRateLimiting("ai");
 

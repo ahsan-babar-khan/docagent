@@ -1,0 +1,29 @@
+@host = http://localhost:5000
+
+### Upload a document with metadata
+POST {{host}}/documents
+Content-Type: application/json
+
+{
+  "fileName": "Contract_Acme.txt",
+  "project": "Apollo",
+  "customer": "Acme",
+  "type": "Contract",
+  "content": "The Acme contract renews on 1 March 2027. Notice must be given 90 days before renewal."
+}
+
+### Find documents by context (project / customer / type)
+GET {{host}}/documents?project=Apollo
+
+### Ask a question (RAG with citations)
+POST {{host}}/ask
+Content-Type: application/json
+
+{ "question": "When does the Acme contract renew?" }
+
+### Ask the agent (tool calling, limited to allowed projects)
+POST {{host}}/agent
+Content-Type: application/json
+X-Allowed-Projects: Apollo
+
+{ "question": "Which contracts do we have for Acme, and when does the newest one renew?" }
