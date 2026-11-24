@@ -4,7 +4,7 @@ using OpenAI.Chat;
 
 namespace DocAgent.Core.Ai;
 
-public class AzureOpenAiChatService(ChatClient chat, string deployment, ILogger<AzureOpenAiChatService> logger) : IChatService
+public class OpenAiChatService(ChatClient chat, string deployment, ILogger<OpenAiChatService> logger) : IChatService
 {
     public ChatClient Client => chat; // reused by the agent
 

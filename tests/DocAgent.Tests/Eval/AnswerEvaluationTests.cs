@@ -14,9 +14,9 @@ namespace DocAgent.Tests.Eval;
 
 /// <summary>
 /// Step 8.5: quality evaluation against the REAL model. Costs a few cents per run, so it is excluded from CI
-/// and only does work when a key is set:
-///   AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY  (+ optional AZURE_OPENAI_CHAT_DEPLOYMENT, AZURE_OPENAI_EMBEDDING_DEPLOYMENT)
-///   or OPENAI_API_KEY for the OpenAI fallback.
+/// and only does work when an AI provider is set via environment variables:
+///   AI_ENDPOINT, AI_KEY, AI_CHAT_MODEL, AI_EMBEDDING_MODEL  (same meaning as the "AI" config section)
+///   Free and local with Ollama: AI_ENDPOINT=http://localhost:11434/v1 AI_CHAT_MODEL=qwen2.5:7b AI_EMBEDDING_MODEL=nomic-embed-text
 ///   dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
 /// Reports citation accuracy, refusal accuracy and latency for several MinScore values.
 /// The table is also written to TestResults/eval.md. Change the prompt or the model, rerun, compare.
@@ -32,7 +32,7 @@ public class AnswerEvaluationTests(ITestOutputHelper output)
         var factory = CreateFactory();
         if (factory is null)
         {
-            output.WriteLine("Skipped: set AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_KEY (or OPENAI_API_KEY) to run the evaluation.");
+            output.WriteLine("Skipped: set AI_ENDPOINT and/or AI_KEY (plus AI_CHAT_MODEL / AI_EMBEDDING_MODEL) to run the evaluation.");
             return;
         }
 
@@ -41,8 +41,8 @@ public class AnswerEvaluationTests(ITestOutputHelper output)
             await File.ReadAllTextAsync(Path.Combine(baseDir, "questions.json")),
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
 
-        var embeddings = new CachingEmbeddingService(new AzureOpenAiEmbeddingService(factory.Embeddings()));
-        var chat = new AzureOpenAiChatService(factory.Chat(), factory.ChatModel, NullLogger<AzureOpenAiChatService>.Instance);
+        var embeddings = new CachingEmbeddingService(new OpenAiEmbeddingService(factory.Embeddings(), factory.EmbeddingModel));
+        var chat = new OpenAiChatService(factory.Chat(), factory.ChatModel, NullLogger<OpenAiChatService>.Instance);
         var index = new CosineIndex();
         using var testDb = new TestDb();
 
@@ -54,7 +54,7 @@ public class AnswerEvaluationTests(ITestOutputHelper output)
         }
 
         var report = new StringBuilder()
-            .AppendLine($"Model: {factory.ChatModel}. {cases.Count(c => c.ExpectFile != null)} answerable + {cases.Count(c => c.ExpectFile == null)} unanswerable questions.")
+            .AppendLine($"Provider: {factory.Provider}, chat: {factory.ChatModel}, embeddings: {factory.EmbeddingModel}. {cases.Count(c => c.ExpectFile != null)} answerable + {cases.Count(c => c.ExpectFile == null)} unanswerable questions.")
             .AppendLine()
             .AppendLine("| MinScore | Citation accuracy | Refusal accuracy | False refusals | Avg latency (ms) |")
             .AppendLine("|---:|---:|---:|---:|---:|");
@@ -90,15 +90,11 @@ public class AnswerEvaluationTests(ITestOutputHelper output)
 
     private static OpenAiClientFactory? CreateFactory()
     {
-        string? Env(string name) => Environment.GetEnvironmentVariable(name);
-        var chatModel = Env("AZURE_OPENAI_CHAT_DEPLOYMENT") ?? "gpt-4o-mini";
-        var embeddingModel = Env("AZURE_OPENAI_EMBEDDING_DEPLOYMENT") ?? "text-embedding-3-small";
-
-        if (!string.IsNullOrWhiteSpace(Env("AZURE_OPENAI_KEY")))
-            return new OpenAiClientFactory(Env("AZURE_OPENAI_ENDPOINT"), Env("AZURE_OPENAI_KEY"), chatModel, embeddingModel);
-        if (!string.IsNullOrWhiteSpace(Env("OPENAI_API_KEY")))
-            return new OpenAiClientFactory(null, Env("OPENAI_API_KEY"), chatModel, embeddingModel);
-        return null;
+        string? Env(string name) => string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(name)) ? null : Environment.GetEnvironmentVariable(name);
+        var endpoint = Env("AI_ENDPOINT");
+        var key = Env("AI_KEY");
+        if (endpoint is null && key is null) return null;
+        return new OpenAiClientFactory(endpoint, key, Env("AI_CHAT_MODEL") ?? "gpt-4o-mini", Env("AI_EMBEDDING_MODEL") ?? "text-embedding-3-small");
     }
 
     /// <summary>Each question is embedded once, not once per MinScore setting.</summary>

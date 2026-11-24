@@ -10,49 +10,73 @@ namespace DocAgent.Core.Search;
 /// </summary>
 public class LshIndex : IVectorIndex
 {
-    private readonly int _tables, _bits, _dims;
-    private readonly float[][][] _planes;                    // [table][bit][dim]
+    private readonly int _tables, _bits, _seed;
+    private int _dims;                                       // 0 until known
+    private float[][][]? _planes;                            // [table][bit][dim]
     private readonly Dictionary<int, List<int>>[] _buckets;  // [table] key -> chunk ids
     private readonly ConcurrentDictionary<int, float[]> _vectors = new();
     private readonly object _lock = new();
 
-    public LshIndex(int dims, int tables = 8, int bits = 12, int seed = 42)
+    /// <param name="dims">Vector size, or 0 to take it from the first vector added
+    /// (so switching embedding models, e.g. 1536-dim OpenAI vs 768-dim nomic-embed-text, needs no config change).</param>
+    public LshIndex(int dims = 0, int tables = 8, int bits = 12, int seed = 42)
     {
         if (bits is < 1 or > 30) throw new ArgumentOutOfRangeException(nameof(bits));
         if (tables < 1) throw new ArgumentOutOfRangeException(nameof(tables));
-        (_dims, _tables, _bits) = (dims, tables, bits);
-        var rng = new Random(seed);                          // fixed seed = repeatable tests
-        _planes = new float[tables][][];
-        _buckets = new Dictionary<int, List<int>>[tables];
-        for (int t = 0; t < tables; t++)
-        {
-            _buckets[t] = new();
-            _planes[t] = new float[bits][];
-            for (int b = 0; b < bits; b++)
-                _planes[t][b] = Enumerable.Range(0, dims).Select(_ => (float)Gaussian(rng)).ToArray();
-        }
+        if (dims < 0) throw new ArgumentOutOfRangeException(nameof(dims));
+        (_tables, _bits, _seed) = (tables, bits, seed);
+        _buckets = Enumerable.Range(0, tables).Select(_ => new Dictionary<int, List<int>>()).ToArray();
+        if (dims > 0) Initialise(dims);
     }
 
     public int Count => _vectors.Count;
+    public int Dims => _dims;
 
-    private int Key(int table, float[] v)
+    private float[][][] Planes(int dims)
     {
-        if (v.Length != _dims) throw new ArgumentException($"Expected {_dims} dimensions, got {v.Length}.");
-        int key = 0;
-        for (int b = 0; b < _bits; b++)
+        if (_planes is null)
+            lock (_lock)
+                if (_planes is null) Initialise(dims);
+        if (dims != _dims) throw new ArgumentException($"Expected {_dims} dimensions, got {dims}.");
+        return _planes!;
+    }
+
+    private void Initialise(int dims)
+    {
+        var rng = new Random(_seed);                         // fixed seed = repeatable tests
+        var planes = new float[_tables][][];
+        for (int t = 0; t < _tables; t++)
         {
-            double dot = 0;
-            var p = _planes[table][b];
-            for (int i = 0; i < _dims; i++) dot += p[i] * v[i];
-            if (dot >= 0) key |= 1 << b;
+            planes[t] = new float[_bits][];
+            for (int b = 0; b < _bits; b++)
+                planes[t][b] = Enumerable.Range(0, dims).Select(_ => (float)Gaussian(rng)).ToArray();
         }
-        return key;
+        _dims = dims;
+        _planes = planes;
+    }
+
+    private int[] Keys(float[] v)
+    {
+        var planes = Planes(v.Length);
+        var keys = new int[_tables];
+        for (int t = 0; t < _tables; t++)
+        {
+            int key = 0;
+            for (int b = 0; b < _bits; b++)
+            {
+                double dot = 0;
+                var p = planes[t][b];
+                for (int i = 0; i < p.Length; i++) dot += p[i] * v[i];
+                if (dot >= 0) key |= 1 << b;
+            }
+            keys[t] = key;
+        }
+        return keys;
     }
 
     public void Add(int chunkId, float[] vector)
     {
-        var keys = new int[_tables];
-        for (int t = 0; t < _tables; t++) keys[t] = Key(t, vector); // hash outside the lock
+        var keys = Keys(vector);                             // hash outside the lock
         _vectors[chunkId] = vector;
         lock (_lock)
             for (int t = 0; t < _tables; t++)
@@ -64,8 +88,8 @@ public class LshIndex : IVectorIndex
 
     public IReadOnlyList<Hit> Search(float[] query, int k)
     {
-        var keys = new int[_tables];
-        for (int t = 0; t < _tables; t++) keys[t] = Key(t, query);
+        if (_planes is null) return Array.Empty<Hit>();      // nothing indexed yet
+        var keys = Keys(query);
         var candidates = new HashSet<int>();
         lock (_lock)
             for (int t = 0; t < _tables; t++)

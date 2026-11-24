@@ -25,30 +25,33 @@ builder.Services.AddDbContext<DocAgentDb>(o =>
     o.UseSqlite(cs);
 });
 
-// ---- AI clients (Step 4 + 6). Resolved lazily, so the app starts without keys; only AI calls need them.
+// ---- AI clients (Step 4 + 6): any OpenAI-compatible provider (Ollama, OpenAI, Azure OpenAI) from the "AI" section.
+// Resolved lazily, so the app starts without AI configured; only AI calls need it.
 builder.Services.AddSingleton(_ =>
 {
-    var azure = config.GetSection("AzureOpenAI");
-    var openAiKey = config["OpenAI:Key"];
-    return string.IsNullOrWhiteSpace(azure["Key"]) && !string.IsNullOrWhiteSpace(openAiKey)
-        ? new OpenAiClientFactory(null, openAiKey, config["OpenAI:ChatModel"] ?? "gpt-4o-mini",
-                                  config["OpenAI:EmbeddingModel"] ?? "text-embedding-3-small")
-        : new OpenAiClientFactory(azure["Endpoint"], azure["Key"], azure["ChatDeployment"] ?? "gpt-4o-mini",
-                                  azure["EmbeddingDeployment"] ?? "text-embedding-3-small");
+    var ai = config.GetSection("AI");
+    var chatModel = ai["ChatModel"];
+    var embeddingModel = ai["EmbeddingModel"];
+    return new OpenAiClientFactory(ai["Endpoint"], ai["Key"],
+        string.IsNullOrWhiteSpace(chatModel) ? "gpt-4o-mini" : chatModel,
+        string.IsNullOrWhiteSpace(embeddingModel) ? "text-embedding-3-small" : embeddingModel);
 });
 builder.Services.AddSingleton<IEmbeddingService>(sp =>
-    new AzureOpenAiEmbeddingService(sp.GetRequiredService<OpenAiClientFactory>().Embeddings()));
+{
+    var f = sp.GetRequiredService<OpenAiClientFactory>();
+    return new OpenAiEmbeddingService(f.Embeddings(), f.EmbeddingModel);
+});
 builder.Services.AddSingleton(sp =>
 {
     var f = sp.GetRequiredService<OpenAiClientFactory>();
-    return new AzureOpenAiChatService(f.Chat(), f.ChatModel, sp.GetRequiredService<ILogger<AzureOpenAiChatService>>());
+    return new OpenAiChatService(f.Chat(), f.ChatModel, sp.GetRequiredService<ILogger<OpenAiChatService>>());
 });
-builder.Services.AddSingleton<IChatService>(sp => sp.GetRequiredService<AzureOpenAiChatService>());
+builder.Services.AddSingleton<IChatService>(sp => sp.GetRequiredService<OpenAiChatService>());
 
 // ---- Vector index (Step 5): exact cosine by default, LSH from the thesis with Search:Mode=lsh
 builder.Services.AddSingleton<IVectorIndex>(_ =>
     config["Search:Mode"] == "lsh"
-        ? new LshIndex(dims: config.GetValue("Search:Dims", 1536),
+        ? new LshIndex(dims: config.GetValue("Search:Dims", 0), // 0 = take it from the first vector (model-independent)
                        tables: config.GetValue("Search:Tables", 8),
                        bits: config.GetValue("Search:Bits", 12))
         : new CosineIndex());
@@ -61,7 +64,7 @@ builder.Services.AddScoped(sp => new AnswerService(
     { MinScore = config.GetValue("Rag:MinScore", AnswerService.DefaultMinScore) });
 builder.Services.AddScoped<DocAgentTools>();
 builder.Services.AddScoped(sp => new DocAgentRunner(
-    sp.GetRequiredService<AzureOpenAiChatService>().Client, sp.GetRequiredService<DocAgentTools>()));
+    sp.GetRequiredService<OpenAiChatService>().Client, sp.GetRequiredService<DocAgentTools>()));
 
 // ---- Limits (Step 11.3): AI endpoints cost money, so cap them
 builder.Services.AddRateLimiter(o =>

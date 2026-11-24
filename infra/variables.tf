@@ -13,23 +13,24 @@ variable "app_service_sku" {
   default = "F1"
 }
 
-variable "openai_endpoint" {
+variable "ai_endpoint" {
   type        = string
-  description = "e.g. https://<your-resource>.openai.azure.com/"
+  default     = ""
+  description = "OpenAI-compatible base URL reachable from Azure. Empty = api.openai.com. An Azure OpenAI URL (https://<res>.openai.azure.com/) is detected automatically. A local Ollama (localhost) is NOT reachable from App Service."
 }
 
-variable "openai_key" {
+variable "ai_key" {
   type        = string
   sensitive   = true
-  description = "Pass with TF_VAR_openai_key, never in a file."
+  description = "API key for the provider. Pass with TF_VAR_ai_key, never in a file."
 }
 
-variable "chat_deployment" {
+variable "chat_model" {
   type    = string
   default = "gpt-4o-mini"
 }
 
-variable "embedding_deployment" {
+variable "embedding_model" {
   type    = string
   default = "text-embedding-3-small"
 }

@@ -55,7 +55,7 @@ resource "azurerm_linux_web_app" "app" {
   service_plan_id     = azurerm_service_plan.plan.id
   https_only          = true
 
-  # Managed identity: lets you drop the API key later (Step 11.2) by granting
+  # Managed identity: if you later use Azure OpenAI, it lets you drop the API key (Step 11.2) by granting
   # "Cognitive Services OpenAI User" on the Azure OpenAI resource to this identity.
   identity {
     type = "SystemAssigned"
@@ -69,10 +69,10 @@ resource "azurerm_linux_web_app" "app" {
   }
 
   app_settings = {
-    "AzureOpenAI__Endpoint"                 = var.openai_endpoint
-    "AzureOpenAI__Key"                      = var.openai_key
-    "AzureOpenAI__ChatDeployment"           = var.chat_deployment
-    "AzureOpenAI__EmbeddingDeployment"      = var.embedding_deployment
+    "AI__Endpoint"                          = var.ai_endpoint # empty = api.openai.com; Azure OpenAI URL is detected
+    "AI__Key"                               = var.ai_key
+    "AI__ChatModel"                         = var.chat_model
+    "AI__EmbeddingModel"                    = var.embedding_model
     "ConnectionStrings__Db"                 = "Data Source=/home/data/docagent.db" # /home survives restarts
     "Search__Mode"                          = "lsh"
     "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.ai.connection_string

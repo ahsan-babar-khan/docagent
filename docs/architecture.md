@@ -20,7 +20,7 @@ flowchart LR
     a --> as
     g --> ar
 
-    ds & as & ar --> aoai[Azure OpenAI<br/>embeddings + chat]
+    ds & as & ar --> aoai[OpenAI-compatible model<br/>Ollama · OpenAI · Azure OpenAI]
     ds & as & ar --> db[(SQLite via EF Core<br/>documents, metadata, chunks)]
     ds & as & ar --> idx[Vector index<br/>CosineIndex or LshIndex]
 ```

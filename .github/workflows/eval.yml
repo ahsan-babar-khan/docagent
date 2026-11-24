@@ -12,11 +12,13 @@ permissions:
 jobs:
   eval:
     runs-on: ubuntu-latest
+    # Needs a hosted OpenAI-compatible provider (a local Ollama is not reachable from GitHub runners).
+    # Without the AI_KEY secret the eval test only prints "Skipped".
     env:
-      AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-      AZURE_OPENAI_KEY: ${{ secrets.AZURE_OPENAI_KEY }}
-      AZURE_OPENAI_CHAT_DEPLOYMENT: ${{ vars.AZURE_OPENAI_CHAT_DEPLOYMENT || 'gpt-4o-mini' }}
-      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-3-small' }}
+      AI_ENDPOINT: ${{ vars.AI_ENDPOINT }}
+      AI_KEY: ${{ secrets.AI_KEY }}
+      AI_CHAT_MODEL: ${{ vars.AI_CHAT_MODEL || 'gpt-4o-mini' }}
+      AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL || 'text-embedding-3-small' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4

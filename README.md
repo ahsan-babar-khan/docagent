@@ -3,7 +3,7 @@
 ![CI](https://github.com/ahsan-babar-khan/docagent/actions/workflows/ci.yml/badge.svg)
 
 **An AI document assistant in .NET 8 on Azure: metadata-aware RAG with citations, a tool-calling agent,
-specification-driven tests and infrastructure-as-code.**
+specification-driven tests and infrastructure-as-code. Works with any OpenAI-compatible model, including free local models via Ollama.**
 
 Live: _add `app_url` from `terraform output` after the first deploy_
 
@@ -15,7 +15,7 @@ Live: _add `app_url` from `terraform output` after the first deploy_
 flowchart LR
     client[Client] --> api[DocAgent.Api<br/>/documents · /ask · /agent]
     api --> core[DocAgent.Core<br/>DocumentService · AnswerService · DocAgentRunner]
-    core --> aoai[Azure OpenAI]
+    core --> aoai[OpenAI-compatible model<br/>Ollama · OpenAI · Azure OpenAI]
     core --> db[(SQLite / EF Core)]
     core --> idx[Vector index<br/>cosine or LSH]
 ```
@@ -54,7 +54,12 @@ At real scale I would use a managed vector store such as Azure AI Search. Writin
 ### Answer quality (AI evaluation)
 
 19 questions over 5 sample documents ([tests/DocAgent.Tests/Eval](tests/DocAgent.Tests/Eval)): 16 answerable and 3 that must be refused.
-Run with `dotnet test --filter Category=Eval` (needs a key, see below):
+Run it free against local Ollama models (or any provider, using the same `AI_*` variables):
+
+```bash
+AI_ENDPOINT=http://localhost:11434/v1 AI_CHAT_MODEL=qwen2.5:7b AI_EMBEDDING_MODEL=nomic-embed-text \
+  dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
+```
 
 | MinScore | Citation accuracy | Refusal accuracy | False refusals | Avg latency (ms) |
 |---:|---:|---:|---:|---:|
@@ -95,7 +100,7 @@ cited file names (structured data), refusal detected *before* the LLM call, and 
 In CI the AI services are replaced by deterministic fakes, so tests are fast, free and repeatable.
 
 ```bash
-dotnet test --filter "Category!=Eval&Category!=Benchmark"   # what CI runs (43 tests)
+dotnet test --filter "Category!=Eval&Category!=Benchmark"   # what CI runs (52 tests)
 dotnet test -c Release --filter Category=Benchmark --logger "console;verbosity=detailed"
 dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
 ```
@@ -107,7 +112,7 @@ dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
 - **Citation guardrail**: citations are filtered against the sources actually sent, so the model cannot cite a file it never saw.
 - **Access checks inside the tools**, not in the prompt. Even if a document tricks the model ("ignore your instructions…"),
   the tools only return documents from allowed projects. This is proven by `AgentAccess.feature`.
-- **AI behind interfaces** (`IEmbeddingService`, `IChatService`): tests swap in fakes, and one factory switches between Azure OpenAI and OpenAI.
+- **AI behind interfaces** (`IEmbeddingService`, `IChatService`): tests swap in fakes, and one factory picks the provider (Ollama, OpenAI or Azure OpenAI) from configuration alone.
 - **Validate before touching the AI**: a bad request gets 400 even when the AI is down, and a missing key gives a clear 503.
 
 ## How I used AI to build this
@@ -125,13 +130,35 @@ dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
 
 ## Run it locally
 
+DocAgent works with any OpenAI-compatible provider, configured in one `AI` section (`Endpoint`, `Key`, `ChatModel`, `EmbeddingModel`).
+The free option needs no key: [Ollama](https://ollama.com) runs the models on your own machine.
+
 ```bash
+# 1. Free, local models (one-time download, a few GB)
+ollama pull qwen2.5:7b          # chat model with tool calling + JSON mode (use qwen2.5:3b on a slow laptop)
+ollama pull nomic-embed-text    # embedding model (768 dimensions)
+
+# 2. Point DocAgent at it
 cd src/DocAgent.Api
-dotnet user-secrets set "AzureOpenAI:Endpoint" "https://<your-resource>.openai.azure.com/"
-dotnet user-secrets set "AzureOpenAI:Key" "<your-key>"
-#   (or the OpenAI fallback: dotnet user-secrets set "OpenAI:Key" "<key>")
+dotnet user-secrets set "AI:Endpoint" "http://localhost:11434/v1"
+dotnet user-secrets set "AI:ChatModel" "qwen2.5:7b"
+dotnet user-secrets set "AI:EmbeddingModel" "nomic-embed-text"
+
+# 3. Run
 dotnet run --launch-profile http        # http://localhost:5000
 ```
+
+Other providers only change the settings:
+
+| Provider | `AI:Endpoint` | `AI:Key` | Models |
+|---|---|---|---|
+| Ollama (free, local) | `http://localhost:11434/v1` | — | e.g. `qwen2.5:7b`, `nomic-embed-text` |
+| OpenAI | _(empty)_ | `sk-...` | `gpt-4o-mini`, `text-embedding-3-small` (defaults) |
+| Azure OpenAI | `https://<res>.openai.azure.com/` (detected automatically) | key | your deployment names |
+
+Switching embedding models changes the vector size, so delete `docagent.db` and upload again after a switch.
+Each model scores similarity differently, so re-tune `Rag:MinScore` with the evaluation for the model you use.
+Without any provider configured, the API still starts: listing works, and the AI endpoints return a clear 503.
 
 Then use [DocAgent.Api.http](src/DocAgent.Api/DocAgent.Api.http), or:
 
@@ -147,14 +174,17 @@ Set `Search:Mode` to `lsh` to use the LSH index (tune with `Search:Tables` / `Se
 
 ## Deploy
 
+The app in Azure needs a provider it can reach over the internet. A local Ollama is not reachable from App Service,
+so the live demo needs a hosted OpenAI-compatible key (OpenAI, or Azure OpenAI if your subscription gets access).
+
 ```bash
 az login && cd infra
 export TF_VAR_subscription_id=$(az account show --query id -o tsv)
-export TF_VAR_openai_endpoint="https://<your-resource>.openai.azure.com/"
-export TF_VAR_openai_key="<your-key>"
+export TF_VAR_ai_key="<your-key>"
+# export TF_VAR_ai_endpoint="https://<res>.openai.azure.com/"   # only for Azure OpenAI or another hosted endpoint
 terraform init && terraform plan && terraform apply
 ```
 
 Then in GitHub, add the web app's publish profile as secret `AZURE_WEBAPP_PUBLISH_PROFILE` and `app_name` as variable
 `AZURE_WEBAPP_NAME`, and push to `main`. The deploy job only runs once that variable exists.
-The Azure OpenAI resource stays outside Terraform because of student-quota limits. Run `terraform destroy` when you are not demoing.
+Run `terraform destroy` when you are not demoing.

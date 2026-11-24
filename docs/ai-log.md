@@ -34,3 +34,20 @@ chunking + embeddings, cosine and LSH indexes, RAG with citations, tool-calling 
 
 **Not done yet (needs accounts/keys):** running the AI evaluation, `terraform apply`, GitHub push and deploy,
 the demo GIF, the App Insights screenshot, a real agent trace for the README.
+
+## 2026-11-24 — No Azure OpenAI key: provider-neutral AI
+
+**Asked:** I don't have an Azure OpenAI key, so make it work without one.
+
+**Produced:** one `AI` config section (`Endpoint`, `Key`, `ChatModel`, `EmbeddingModel`) for any OpenAI-compatible provider.
+Ollama (free, local, no key) is the recommended default. Azure OpenAI is detected from the endpoint host, and OpenAI is used when only a key is set.
+The LSH index now takes its vector size from the first vector, so switching models (1536 vs 768 dims) needs no config change.
+
+**Problem caught and how:**
+
+| # | What went wrong | How it was caught | Fix |
+|---|---|---|---|
+| 8 | The OpenAI .NET SDK's `GenerateEmbeddingAsync` always requests base64 and can *only* parse base64. A server that returns plain float arrays makes it throw `FormatException`. | A new test that runs the real client classes against a small fake OpenAI-compatible server | Use the SDK's protocol method with `"encoding_format": "float"` and parse either format |
+
+**Not verified:** no real Ollama or OpenAI run yet (neither was available on this machine). The fake-server tests cover
+request shape and parsing, not model quality. Run the evaluation against Ollama to get real numbers.
