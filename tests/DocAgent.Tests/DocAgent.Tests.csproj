@@ -27,6 +27,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Evaluation set: questions and sample documents are copied next to the test assembly -->
+    <None Include="Eval\questions.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Eval\docs\*.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\DocAgent.Core\DocAgent.Core.csproj" />
     <ProjectReference Include="..\..\src\DocAgent.Api\DocAgent.Api.csproj" />
   </ItemGroup>

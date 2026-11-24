@@ -1,0 +1,10 @@
+PROJECT PLAN – Apollo
+
+Project manager: Liisa Korhonen.
+Technical lead: Mikko Virtanen.
+Goal: migrate Acme's document archive (about 1.2 million files) to the new cloud platform.
+Phase 1 (discovery) runs from January to March 2026.
+Phase 2 (migration) runs from April to September 2026.
+Go-live is planned for 15 October 2026.
+The approved budget is 480,000 euros.
+Main risk: legacy files without metadata; mitigation is automatic classification during migration.

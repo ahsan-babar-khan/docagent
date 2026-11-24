@@ -1,0 +1,9 @@
+CONTRACT – Acme Oy and Northwind Solutions
+
+Customer: Acme Oy. Project: Apollo.
+Signed on 1 March 2025 for an initial term of two years.
+The Acme contract renews on 1 March 2027 unless either party gives notice.
+Notice of termination must be given at least 90 days before the renewal date.
+The monthly service fee is 12,500 euros, invoiced on the first working day of each month.
+Payment terms are 30 days net. Late payments carry 8 percent annual interest.
+Support is provided Monday to Friday, 8:00–17:00 Finnish time, with a 4-hour response time for critical incidents.

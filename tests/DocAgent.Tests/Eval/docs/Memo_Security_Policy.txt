@@ -1,0 +1,8 @@
+MEMO – Information security policy update
+
+To: all staff. Project: Internal.
+From 1 January 2027, multi-factor authentication is mandatory for every system that holds customer data.
+Passwords must be at least 14 characters long.
+Customer documents may not be stored on personal devices or personal cloud accounts.
+Security incidents must be reported to security@northwind.example within 24 hours.
+The policy owner is the Chief Information Security Officer, Anna Laine.

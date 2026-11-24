@@ -1,0 +1,8 @@
+CONTRACT – Initech and Northwind Solutions
+
+Customer: Initech. Project: Hermes.
+The agreement starts on 1 June 2026 and ends on 31 May 2028. It does not renew automatically.
+Northwind will deliver an invoice-processing integration for Initech's ERP system.
+Fixed price: 96,000 euros, paid in three milestones of 32,000 euros.
+Acceptance testing must be completed within 10 working days of each delivery.
+Governing law: Finland. Disputes are settled in the Helsinki District Court.

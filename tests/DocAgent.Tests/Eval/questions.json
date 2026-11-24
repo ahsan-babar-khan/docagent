@@ -1,0 +1,21 @@
+[
+  { "question": "When does the Acme contract renew?", "expectFile": "Contract_Acme.txt" },
+  { "question": "How many days of notice are needed to terminate the Acme contract?", "expectFile": "Contract_Acme.txt" },
+  { "question": "What is the monthly fee Acme pays?", "expectFile": "Contract_Acme.txt" },
+  { "question": "What is the response time for critical incidents in the Acme support agreement?", "expectFile": "Contract_Acme.txt" },
+  { "question": "Who is the project manager of Apollo?", "expectFile": "Apollo_Plan.txt" },
+  { "question": "When is the Apollo go-live planned?", "expectFile": "Apollo_Plan.txt" },
+  { "question": "What is the approved budget for the Apollo migration?", "expectFile": "Apollo_Plan.txt" },
+  { "question": "What is the main risk in the archive migration project?", "expectFile": "Apollo_Plan.txt" },
+  { "question": "What is the total amount on the Globex invoice?", "expectFile": "Invoice_Globex_2026-10.txt" },
+  { "question": "When is invoice 2026-1043 due?", "expectFile": "Invoice_Globex_2026-10.txt" },
+  { "question": "How many consulting hours were billed to Globex in October?", "expectFile": "Invoice_Globex_2026-10.txt" },
+  { "question": "From when is multi-factor authentication mandatory?", "expectFile": "Memo_Security_Policy.txt" },
+  { "question": "How long must passwords be?", "expectFile": "Memo_Security_Policy.txt" },
+  { "question": "Within how many hours must a security incident be reported?", "expectFile": "Memo_Security_Policy.txt" },
+  { "question": "Does the Initech contract renew automatically?", "expectFile": "Contract_Initech.txt" },
+  { "question": "What is the fixed price of the Initech integration?", "expectFile": "Contract_Initech.txt" },
+  { "question": "What is the capital of Australia?", "expectFile": null },
+  { "question": "Who won the football World Cup in 2018?", "expectFile": null },
+  { "question": "What is a good recipe for cinnamon buns?", "expectFile": null }
+]

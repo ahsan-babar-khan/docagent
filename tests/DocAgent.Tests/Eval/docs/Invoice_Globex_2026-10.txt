@@ -1,0 +1,7 @@
+INVOICE 2026-1043
+
+From: Northwind Solutions. To: Globex Ltd. Project: Hermes.
+Invoice date: 31 October 2026. Due date: 30 November 2026.
+Line 1: Integration consulting, 64 hours at 110 euros = 7,040 euros.
+Line 2: Cloud hosting, October 2026 = 1,250 euros.
+Subtotal 8,290 euros. VAT 25.5 percent. Total 10,403.95 euros.
