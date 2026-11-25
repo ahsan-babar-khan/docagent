@@ -46,6 +46,23 @@ public class DocAgentToolsTests : IDisposable
         plans.Should().Contain("Secret_Plan.txt").And.NotContain("Contract_Acme.txt");
     }
 
+    [Theory]   // what qwen2.5:3b actually sent in a real run
+    [InlineData("""{"project":"","customer":"","type":""}""")]
+    [InlineData("""{"type":"contract"}""")]
+    [InlineData("""{"customer":" acme "}""")]
+    public async Task List_ignores_blank_filters_and_case(string args)
+    {
+        var result = await Run("list_documents", args);
+        result.Should().Contain("Contract_Acme.txt");
+    }
+
+    [Fact]
+    public async Task Case_insensitive_filters_do_not_widen_access()
+    {
+        (await Run("list_documents", """{"project":"zeus"}""")).Should().Be("[]");
+        (await Run("search_documents", """{"query":"Acme budget","project":"ZEUS"}""")).Should().Be("[]");
+    }
+
     [Fact]
     public async Task Read_returns_content_for_allowed_and_refuses_others()
     {

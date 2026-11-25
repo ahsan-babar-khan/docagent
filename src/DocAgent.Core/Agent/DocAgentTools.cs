@@ -47,9 +47,10 @@ public class DocAgentTools(IEmbeddingService embeddings, IVectorIndex index, Doc
         };
     }
 
+    /// <summary>A string argument, or null when missing or blank. Small models often send "" for filters they do not use.</summary>
     private static string? Str(JsonElement e, string name) =>
         e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString() : null;
+        && !string.IsNullOrWhiteSpace(v.GetString()) ? v.GetString()!.Trim() : null;
 
     private async Task<string> SearchAsync(JsonElement a, IReadOnlySet<string> allowed, CancellationToken ct)
     {
@@ -62,7 +63,7 @@ public class DocAgentTools(IEmbeddingService embeddings, IVectorIndex index, Doc
         var allowedList = allowed.ToList();
         var rows = await db.Chunks
             .Where(c => ids.Contains(c.Id) && allowedList.Contains(c.Document.Project))   // access control
-            .Where(c => project == null || c.Document.Project == project)
+            .Where(c => project == null || c.Document.Project.ToLower() == project.ToLower())
             .Select(c => new { c.Id, DocumentId = c.Document.Id, c.Document.FileName, c.Document.Project, c.Text })
             .ToListAsync(ct);
 
@@ -78,7 +79,10 @@ public class DocAgentTools(IEmbeddingService embeddings, IVectorIndex index, Doc
         var allowedList = allowed.ToList();
         var rows = await db.Documents
             .Where(d => allowedList.Contains(d.Project))                                   // access control
-            .Where(d => (p == null || d.Project == p) && (c == null || d.Customer == c) && (t == null || d.Type == t))
+            // Filters ignore case ("contract" finds "Contract"). Access control above stays an exact match.
+            .Where(d => (p == null || d.Project.ToLower() == p.ToLower())
+                     && (c == null || d.Customer.ToLower() == c.ToLower())
+                     && (t == null || d.Type.ToLower() == t.ToLower()))
             .OrderByDescending(d => d.UploadedAt)
             .Select(d => new { d.Id, d.FileName, d.Project, d.Customer, d.Type, d.UploadedAt })
             .ToListAsync(ct);
