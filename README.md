@@ -5,7 +5,7 @@
 **An AI document assistant in .NET 8 on Azure: metadata-aware RAG with citations, a tool-calling agent,
 specification-driven tests and infrastructure-as-code. Works with any OpenAI-compatible model, including free local models via Ollama.**
 
-Live: _add `app_url` from `terraform output` after the first deploy_
+Live demo: not deployed yet (needs a hosted model key). See the demo GIF below.
 
 ![DocAgent demo: upload, cited answer, refusal, agent trace](docs/demo.gif)
 
@@ -141,13 +141,13 @@ dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
 
 ## How I used AI to build this
 
-I built DocAgent with a coding agent (Claude Code). I wrote the step-by-step build guide first: the architecture, the
-order of the steps, the BDD-first rule and the guardrails I wanted. The agent wrote most of the code from that guide,
+I built DocAgent with a coding agent (Claude Code). I started from a build plan that I drafted with an AI assistant and then
+reviewed, adjusted and enforced: the architecture, the order of the steps, the BDD-first rule and the guardrails. The agent wrote most of the code from that plan,
 in small commits. I made the decisions, and nothing counted as done until it built, passed the tests and worked in a real run.
 Every problem is logged in [docs/ai-log.md](docs/ai-log.md).
 
 **How the work was split**
-- **Me:** the design and the rules. Specs before code, AI behind interfaces so tests use fakes, access checks in code
+- **Me:** choosing and enforcing the design. Specs before code, AI behind interfaces so tests use fakes, access checks in code
   rather than in the prompt, refuse before calling the LLM. I also set the constraints along the way: no Azure OpenAI
   key, so make it provider-neutral; run it for real on free local models; no secrets in Git.
 - **The agent:** scaffolding, implementation, tests, CI, Terraform and docs. It also ran the API, the benchmark and the evaluation.
@@ -162,7 +162,7 @@ Every problem is logged in [docs/ai-log.md](docs/ai-log.md).
    this". The small model cited source *numbers* (`[1]`) rather than file names, and the strict parser failed closed.
    Comparing the raw model reply with the API response showed the cause. Citations are now mapped to the sources that were
    actually sent, so the guardrail still holds.
-3. **A threshold copied from a guide.** `MinScore = 0.30` let "What is the capital of Australia?" through, and the model
+3. **A threshold copied from the plan.** `MinScore = 0.30` let "What is the capital of Australia?" through, and the model
    answered from its own knowledge. Printing similarity scores showed that `nomic-embed-text` scores off-topic questions at
    0.39–0.42. I set the threshold to 0.50 from the evaluation sweep (see Results).
 
