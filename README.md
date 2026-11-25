@@ -133,7 +133,38 @@ dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
 
 ## How I used AI to build this
 
-> _Write this section in your own words from [docs/ai-log.md](docs/ai-log.md): what the agent did, how you checked it, and what it changed. Give one real example of each. The log records concrete mistakes that were caught. One example: the validation-order bug found by a smoke test that the in-memory tests could not see._
+I built DocAgent with a coding agent (Claude Code). I wrote the step-by-step build guide first: the architecture, the
+order of the steps, the BDD-first rule and the guardrails I wanted. The agent wrote most of the code from that guide,
+in small commits. I made the decisions, and nothing counted as done until it built, passed the tests and worked in a real run.
+Every problem is logged in [docs/ai-log.md](docs/ai-log.md).
+
+**How the work was split**
+- **Me:** the design and the rules. Specs before code, AI behind interfaces so tests use fakes, access checks in code
+  rather than in the prompt, refuse before calling the LLM. I also set the constraints along the way: no Azure OpenAI
+  key, so make it provider-neutral; run it for real on free local models; no secrets in Git.
+- **The agent:** scaffolding, implementation, tests, CI, Terraform and docs. It also ran the API, the benchmark and the evaluation.
+- **Checking:** build output, 63 deterministic tests, smoke tests of the real API with `curl`, and an evaluation against a real model.
+
+**Three things that were caught, and how**
+1. **A test setup that hid a bug.** A bad upload returned 500 instead of 400 when no AI key was configured, because ASP.NET
+   built the AI client before the validation code ran. The in-memory tests always register fakes, so they could not see it.
+   A `curl` smoke test of the real API with no keys found it. Fix: validate first, then resolve AI services, and return a
+   clear 503 when AI is missing. `ApiWithoutAiTests` now guards it.
+2. **Code that passed every test but failed on a real model.** With Ollama, correct answers came back as "I could not find
+   this". The small model cited source *numbers* (`[1]`) rather than file names, and the strict parser failed closed.
+   Comparing the raw model reply with the API response showed the cause. Citations are now mapped to the sources that were
+   actually sent, so the guardrail still holds.
+3. **A threshold copied from a guide.** `MinScore = 0.30` let "What is the capital of Australia?" through, and the model
+   answered from its own knowledge. Printing similarity scores showed that `nomic-embed-text` scores off-topic questions at
+   0.39–0.42. I set the threshold to 0.50 from the evaluation sweep (see Results).
+
+There were twelve problems in total, including an old AMD GPU that produced garbage output, runaway generation with no
+output cap, and an SDK method that could only parse base64 embeddings.
+
+**What I learned:** all the deterministic tests passed before the first real-model run, and that run still found four
+problems. Fakes prove the logic, and only an evaluation against the real model proves the behaviour. That is why the project
+has both, and why the evaluation runs weekly in CI. The agent was fast at writing code. The value came from deciding what
+to build, setting the checks, and not trusting output that had not been run.
 
 ## What I would do next
 
