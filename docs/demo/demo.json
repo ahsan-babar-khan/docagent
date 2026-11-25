@@ -1,0 +1,88 @@
+[
+  {
+    "kind": "upload",
+    "body": {
+      "fileName": "Contract_Acme.txt",
+      "project": "Apollo",
+      "customer": "Acme",
+      "type": "Contract"
+    },
+    "response": {
+      "id": 1,
+      "fileName": "Contract_Acme.txt",
+      "project": "Apollo",
+      "customer": "Acme",
+      "type": "Contract",
+      "chunks": 1
+    },
+    "secs": 2.8
+  },
+  {
+    "kind": "upload",
+    "body": {
+      "fileName": "Apollo_Plan.txt",
+      "project": "Apollo",
+      "customer": "Acme",
+      "type": "Plan"
+    },
+    "response": {
+      "id": 2,
+      "fileName": "Apollo_Plan.txt",
+      "project": "Apollo",
+      "customer": "Acme",
+      "type": "Plan",
+      "chunks": 1
+    },
+    "secs": 0.3
+  },
+  {
+    "kind": "upload",
+    "body": {
+      "fileName": "Salaries_2026.txt",
+      "project": "HR",
+      "customer": "Internal",
+      "type": "Payroll"
+    },
+    "response": {
+      "id": 3,
+      "fileName": "Salaries_2026.txt",
+      "project": "HR",
+      "customer": "Internal",
+      "type": "Payroll",
+      "chunks": 1
+    },
+    "secs": 0.1
+  },
+  {
+    "kind": "ask",
+    "question": "When does the Acme contract renew?",
+    "response": {
+      "text": "The Acme contract renews on 1 March 2027.",
+      "citations": [
+        "Contract_Acme.txt"
+      ]
+    },
+    "secs": 3.8
+  },
+  {
+    "kind": "ask",
+    "question": "What is the capital of Australia?",
+    "response": {
+      "text": "I could not find this in the documents.",
+      "citations": []
+    },
+    "secs": 0.2
+  },
+  {
+    "kind": "agent",
+    "question": "Who is the project manager of Apollo?",
+    "allowed": "Apollo",
+    "response": {
+      "answer": "The Apollo project appears in the list of projects. Next, I will read the document to find out who the project manager is.\n\nI will use the read_document function to read the document \"Apollo_Plan.txt\".\n",
+      "trace": [
+        "list_documents({\"customer\":\"\",\"project\":\"\",\"type\":\"\"})"
+      ]
+    },
+    "secs": 18.4
+  }
+]

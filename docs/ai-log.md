@@ -67,3 +67,16 @@ request shape and parsing, not model quality. Run the evaluation against Ollama 
 
 **Lesson:** the deterministic tests all passed before this run. None of these four problems can show up with fakes.
 They are exactly why the guide keeps a separate evaluation against the real model.
+
+## 2026-11-25 — Recording the demo: the agent on a 3B model
+
+**Asked:** record a demo GIF.
+
+**Problem caught and how:**
+
+| # | What went wrong | How it was caught | Fix |
+|---|---|---|---|
+| 13 | The agent almost never answered document questions. qwen2.5:3b calls `list_documents` with empty filters (`{"project":"","type":""}`) or lowercase values (`"contract"`). The tool treated `""` as "project equals empty" and compared case-sensitively, so it returned nothing and the model gave up. The model also often stopped after listing (metadata only) or asked the user which project they meant. | Reading the traces of real agent runs while recording the demo | Blank filters are ignored and filters ignore case. Access control stays an exact match, and a test proves `"zeus"` does not widen access. The prompt now says listing is metadata only, and to call a tool instead of asking. 4 new tests. Measured: 2/5 correct before, 4/6 after |
+
+**Still true:** a 3B model is unreliable at multi-step tool use. The README states the measured rate instead of hiding it.
+The GIF is rendered from the real responses saved in `docs/demo/`.

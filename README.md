@@ -7,7 +7,10 @@ specification-driven tests and infrastructure-as-code. Works with any OpenAI-com
 
 Live: _add `app_url` from `terraform output` after the first deploy_
 
-<!-- Demo GIF (60 s): upload a document, ask a question, show the cited answer, then an agent question with its trace. -->
+![DocAgent demo: upload, cited answer, refusal, agent trace](docs/demo.gif)
+
+<sub>A real run against free local models (Ollama, qwen2.5:3b) on a laptop CPU. Waiting time is shortened in the animation,
+and the real time of each call is shown. The responses are the API's actual output, in [docs/demo](docs/demo).</sub>
 
 ## Architecture
 
@@ -76,6 +79,11 @@ Measured on a laptop CPU with free local models (Ollama: `qwen2.5:3b` for chat, 
 - Small set (19 questions), one run, one model. It is a regression check, not a benchmark: change the prompt or the
   model, rerun, compare.
 
+**Agent with the same 3B model:** in 4 of 6 runs on document questions it called the tools and answered correctly
+(for example `list_documents` → `read_document(2)` → "Liisa Korhonen"). In the other two it asked a clarifying question
+or stopped after listing. Multi-step tool use is where a 3B model is weakest. A larger model (qwen2.5:7b, gpt-4o-mini)
+is the fix, and the code does not change. The raw runs are in [docs/demo/agent_runs.jsonl](docs/demo/agent_runs.jsonl).
+
 Run it yourself (free, local), or against any provider with the same `AI_*` variables:
 
 ```bash
@@ -116,7 +124,7 @@ cited file names (structured data), refusal detected *before* the LLM call, and 
 In CI the AI services are replaced by deterministic fakes, so tests are fast, free and repeatable.
 
 ```bash
-dotnet test --filter "Category!=Eval&Category!=Benchmark"   # what CI runs (63 tests)
+dotnet test --filter "Category!=Eval&Category!=Benchmark"   # what CI runs (67 tests)
 dotnet test -c Release --filter Category=Benchmark --logger "console;verbosity=detailed"
 dotnet test --filter Category=Eval --logger "console;verbosity=detailed"
 ```
@@ -143,7 +151,7 @@ Every problem is logged in [docs/ai-log.md](docs/ai-log.md).
   rather than in the prompt, refuse before calling the LLM. I also set the constraints along the way: no Azure OpenAI
   key, so make it provider-neutral; run it for real on free local models; no secrets in Git.
 - **The agent:** scaffolding, implementation, tests, CI, Terraform and docs. It also ran the API, the benchmark and the evaluation.
-- **Checking:** build output, 63 deterministic tests, smoke tests of the real API with `curl`, and an evaluation against a real model.
+- **Checking:** build output, 67 deterministic tests, smoke tests of the real API with `curl`, and an evaluation against a real model.
 
 **Three things that were caught, and how**
 1. **A test setup that hid a bug.** A bad upload returned 500 instead of 400 when no AI key was configured, because ASP.NET
@@ -158,7 +166,7 @@ Every problem is logged in [docs/ai-log.md](docs/ai-log.md).
    answered from its own knowledge. Printing similarity scores showed that `nomic-embed-text` scores off-topic questions at
    0.39–0.42. I set the threshold to 0.50 from the evaluation sweep (see Results).
 
-There were twelve problems in total, including an old AMD GPU that produced garbage output, runaway generation with no
+There were thirteen problems in total, including agent tools that treated a small model's empty filters as "match nothing", an old AMD GPU that produced garbage output, runaway generation with no
 output cap, and an SDK method that could only parse base64 embeddings.
 
 **What I learned:** all the deterministic tests passed before the first real-model run, and that run still found four
